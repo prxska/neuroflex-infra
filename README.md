@@ -38,26 +38,26 @@ NeuroFlex VR es una plataforma SaaS diseñada para ejercitar y evaluar la memori
 
 
 
-```mermaid
-    C4Context
-    title Diagrama de Contexto - NeuroFlex VR (Nivel 1)
+flowchart TD
+    classDef person fill:#08427B,stroke:#052A50,color:#ffffff,stroke-width:2px;
+    classDef system fill:#1168BD,stroke:#0B4884,color:#ffffff,stroke-width:2px;
+    classDef ext fill:#4A5568,stroke:#2D3748,color:#ffffff,stroke-width:2px;
 
-    Person(paciente, "Paciente", "Persona mayor en rehabilitacion cognitiva")
-    Person(especialista, "Especialista", "Kinesiologo / Terapeuta")
-    Person(admin_inst, "Admin Institucion", "Gestion CESFAM / ELEAM")
-    Person(auditor, "Auditor Legal", "Fiscalizacion Ley 21.719")
+    paciente["<b>Paciente</b><br/>[Persona]<br/>Persona mayor en rehabilitacion cognitiva"]:::person
+    especialista["<b>Especialista</b><br/>[Persona]<br/>Kinesiologo / Terapeuta"]:::person
+    admin_inst["<b>Admin Institucion</b><br/>[Persona]<br/>Gestion CESFAM / ELEAM"]:::person
+    auditor["<b>Auditor Legal</b><br/>[Persona]<br/>Fiscalizacion Ley 21.719"]:::person
 
-    System_Ext(meta_quest, "Meta Quest 3", "App Unity VR con almacenamiento offline")
-    System(neuroflex, "NeuroFlex VR (SaaS Cloud)", "Ingesta asincrona, aislamiento multi-tenant y clasificacion IA")
-    System_Ext(salud_chile, "Sistemas Locales", "Fichas clinicas institucionales")
+    meta_quest["<b>Meta Quest 3</b><br/>[Dispositivo Externo]<br/>App Unity VR con almacenamiento offline"]:::ext
+    neuroflex["<b>NeuroFlex VR (SaaS Cloud)</b><br/>[Sistema Cloud]<br/>Ingesta asincrona, aislamiento multi-tenant e IA"]:::system
+    salud_chile["<b>Sistemas Locales</b><br/>[Sistema Externo]<br/>Fichas clinicas institucionales"]:::ext
 
-    Rel(paciente, meta_quest, "Interactua", "Fisico")
-    Rel(meta_quest, neuroflex, "Telemetria cifrada", "HTTPS / JSON")
-    Rel(especialista, neuroflex, "Configura y monitorea", "HTTPS")
-    Rel(admin_inst, neuroflex, "Administra licencias", "HTTPS")
-    Rel(auditor, neuroflex, "Consulta bitacoras", "Athena")
-    Rel(neuroflex, salud_chile, "Exporta reportes PDF", "Cifrado")
-
+    paciente -->|Interactua fisicamente| meta_quest
+    meta_quest -->|Telemetria cifrada HTTPS/JSON| neuroflex
+    especialista -->|Configura y monitorea HTTPS| neuroflex
+    admin_inst -->|Administra licencias HTTPS| neuroflex
+    auditor -->|Consulta bitacoras Athena| neuroflex
+    neuroflex -->|Exporta reportes PDF cifrados| salud_chile
 
 
 
