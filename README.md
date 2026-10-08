@@ -42,25 +42,21 @@ NeuroFlex VR es una plataforma SaaS diseñada para ejercitar y evaluar la memori
 C4Context
     title Diagrama de Contexto de NeuroFlex VR (Nivel 1)
 
-    C4Context
-    title Diagrama de Contexto - NeuroFlex VR (Nivel 1)
-
-    Person(paciente, "Paciente", "Persona mayor en rehabilitacion cognitiva")
+    Person(paciente, "Paciente", "Persona mayor en rehabilitacion")
     Person(especialista, "Especialista", "Kinesiologo / Terapeuta")
     Person(admin_inst, "Admin Institucion", "Gestion CESFAM / ELEAM")
-    Person(auditor, "Auditor Legal", "Fiscalizacion Ley 21.719")
+    Person(auditor, "Auditor Legal", "Auditoria Ley 21.719")
 
-    System_Ext(meta_quest, "Meta Quest 3", "App Unity VR con almacenamiento offline")
-    System(neuroflex, "NeuroFlex VR (SaaS Cloud)", "Ingesta asincrona, aislamiento multi-tenant y clasificacion IA")
-    System_Ext(salud_chile, "Sistemas Locales", "Fichas clinicas institucionales")
+    System_Ext(meta_quest, "Meta Quest 3", "App Unity VR con cache offline")
+    System(neuroflex, "Plataforma NeuroFlex VR", "Ingesta asincrona, aislamiento multi-tenant y clasificacion IA")
+    System_Ext(salud_chile, "Sistemas Locales", "Fichas clinicas y reportes")
 
     Rel(paciente, meta_quest, "Interactua", "Fisico")
     Rel(meta_quest, neuroflex, "Telemetria cifrada", "HTTPS / JSON")
     Rel(especialista, neuroflex, "Configura y monitorea", "HTTPS")
-    Rel(admin_inst, neuroflex, "Administra licencias", "HTTPS")
-    Rel(auditor, neuroflex, "Consulta bitacoras", "Athena")
-    Rel(neuroflex, salud_chile, "Exporta reportes PDF", "Cifrado")
-
+    Rel(admin_inst, neuroflex, "Gestiona licencias", "HTTPS")
+    Rel(auditor, neuroflex, "Inspecciona bitacoras", "Athena")
+    Rel(neuroflex, salud_chile, "Exporta informes PDF", "Cifrado")
 
 
 
