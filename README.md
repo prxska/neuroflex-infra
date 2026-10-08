@@ -35,7 +35,7 @@ NeuroFlex VR es una plataforma SaaS diseñada para ejercitar y evaluar la memori
 ### 3. Modelo de Arquitectura: C4 Nivel 1 (Contexto del Sistema)
 
 
-Matriz de Cumplimiento Técnico (Ley N.º 21.719)Principio LegalObligación NormativaSalvaguarda Técnica de ArquitecturaMinimización de DatosProhibición de persistir identificadores nominativos directos en la nube pública[cite: 17].Uso obligatorio de patient_id opaco/alfanumérico; el emparejamiento con el RUT se mantiene en el software local del CESFAM[cite: 17].Aislamiento EstrictoSeparación total de datos entre diferentes instituciones médicas[cite: 17].Partición DynamoDB (PK: tenant_id), tokens de AWS STS restringidos por política y llaves AWS KMS independientes por cliente[cite: 17].Integridad e InmutabilidadGarantía de no repudio y no alteración retrospectiva de métricas de salud[cite: 17].Duplicación de telemetría sin procesar en Amazon S3 con Object Lock en modo Compliance[cite: 17].Trazabilidad y AuditoríaRegistro obligatorio de todo acceso, consulta, exportación de PDF y accesos denegados[cite: 17].Logs inmutables en AWS CloudTrail y AWS Config consultables exclusivamente por el rol de Auditor mediante Amazon Athena[cite: 17].Transferencia InternacionalJustificación jurídica y técnica del almacenamiento transfronterizo de datos sensibles[cite: 17].Alojamiento temporal en São Paulo (sa-east-1) bajo contratos de protección de AWS hasta la habilitación de la región local de Chile anunciada para fines de 2026[cite: 17].
+
 
 
 ```mermaid
