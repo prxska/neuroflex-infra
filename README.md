@@ -1,7 +1,7 @@
 # Documento de Arquitectura de Software (SAD)
 ## Plataforma SaaS NeuroFlex VR
 
-**Versión:** 1.0.0  
+
 **Fecha:** Octubre 2026  
 **Modalidad:** Innovación / Desarrollo  
 **Repositorio:** `prxska/neuroflex-infra`  
