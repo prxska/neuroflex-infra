@@ -42,10 +42,10 @@ NeuroFlex VR es una plataforma SaaS diseñada para ejercitar y evaluar la memori
 C4Context
     title Diagrama de Contexto de NeuroFlex VR (Nivel 1)
 
-    Person(paciente, "Paciente", "Persona mayor en rehabilitacion")
-    Person(especialista, "Especialista", "Kinesiologo / Terapeuta")
-    Person(admin_inst, "Admin Institucion", "Gestion CESFAM / ELEAM")
-    Person(auditor, "Auditor Legal", "Auditoria Ley 21.719")
+   (paciente, "Paciente", "Persona mayor en rehabilitacion")
+    (especialista, "Especialista", "Kinesiologo / Terapeuta")
+    (admin_inst, "Admin Institucion", "Gestion CESFAM / ELEAM")
+    (auditor, "Auditor Legal", "Auditoria Ley 21.719")
 
     System_Ext(meta_quest, "Meta Quest 3", "App Unity VR con cache offline")
     System(neuroflex, "Plataforma NeuroFlex VR", "Ingesta asincrona, aislamiento multi-tenant y clasificacion IA")
