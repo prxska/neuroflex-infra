@@ -34,10 +34,7 @@ NeuroFlex VR es una plataforma SaaS diseñada para ejercitar y evaluar la memori
 
 ### 3. Modelo de Arquitectura: C4 Nivel 1 (Contexto del Sistema)
 
-
-
-
-
+```mermaid
 flowchart TD
     classDef person fill:#08427B,stroke:#052A50,color:#ffffff,stroke-width:2px;
     classDef system fill:#1168BD,stroke:#0B4884,color:#ffffff,stroke-width:2px;
@@ -58,6 +55,6 @@ flowchart TD
     admin_inst -->|Administra licencias HTTPS| neuroflex
     auditor -->|Consulta bitacoras Athena| neuroflex
     neuroflex -->|Exporta reportes PDF cifrados| salud_chile
-
+```
 
 
