@@ -42,27 +42,24 @@ NeuroFlex VR es una plataforma SaaS diseñada para ejercitar y evaluar la memori
 C4Context
     title Diagrama de Contexto de NeuroFlex VR (Nivel 1)
 
-    Person(paciente, "Persona Mayor / Paciente", "Ejecuta sesiones de estimulacion cognitiva con visor VR. Identificado solo por codigo anonimo.")
-    Person(especialista, "Especialista / Kinesiologo", "Configura protocolos, asigna nivel (facil/dificil) y revisa metricas desde app de escritorio.")
-    Person(admin_inst, "Administrador de Institucion", "Gestiona usuarios locales, autoriza emision de informes PDF y audita uso del CESFAM/ELEAM.")
-    Person(auditor, "Auditor Legal / Clinico", "Rol de solo lectura con acceso a trazas inmutables de acceso y cumplimiento Ley 21.719.")
+    C4Context
+    title Diagrama de Contexto - NeuroFlex VR (Nivel 1)
 
-    Enterprise_Boundary(b0, "Ecosistema Clinico de Rehabilitacion") {
-        System(neuroflex_system, "Plataforma SaaS NeuroFlex VR", "Sistema cloud multi-tenant de procesamiento de telemetria, clasificacion por IA e historico inmutable.")
-    }
+    Person(paciente, "Paciente", "Persona mayor en rehabilitacion cognitiva")
+    Person(especialista, "Especialista", "Kinesiologo / Terapeuta")
+    Person(admin_inst, "Admin Institucion", "Gestion CESFAM / ELEAM")
+    Person(auditor, "Auditor Legal", "Fiscalizacion Ley 21.719")
 
-    System_Ext(meta_quest, "Meta Quest 3 (App Unity)", "Dispositivo autonomo con cache local offline y marcado temporal riguroso de eventos.")
-    System_Ext(salud_chile, "Sistemas Locales de Salud", "Fichas clinicas o plataformas internas de cada CESFAM / ELEAM.")
+    System_Ext(meta_quest, "Meta Quest 3", "App Unity VR con almacenamiento offline")
+    System(neuroflex, "NeuroFlex VR (SaaS Cloud)", "Ingesta asincrona, aislamiento multi-tenant y clasificacion IA")
+    System_Ext(salud_chile, "Sistemas Locales", "Fichas clinicas institucionales")
 
-    Rel(paciente, meta_quest, "Interactua fisicamente en", "Movimientos y respuestas")
-    Rel(especialista, neuroflex_system, "Consulta metricas y define parametros via", "HTTPS")
-    Rel(admin_inst, neuroflex_system, "Administra licencias y autoriza informes PDF via", "HTTPS")
-    Rel(auditor, neuroflex_system, "Inspecciona bitacoras forenses via", "Consola CloudTrail/Athena")
-
-    Rel(meta_quest, neuroflex_system, "Sincroniza telemetria y eventos cifrados con llave KMS", "HTTPS / JSON versionado")
-    Rel(neuroflex_system, salud_chile, "Exporta reportes autorizados en PDF", "Descarga cifrada")
-
-
+    Rel(paciente, meta_quest, "Interactua", "Fisico")
+    Rel(meta_quest, neuroflex, "Telemetria cifrada", "HTTPS / JSON")
+    Rel(especialista, neuroflex, "Configura y monitorea", "HTTPS")
+    Rel(admin_inst, neuroflex, "Administra licencias", "HTTPS")
+    Rel(auditor, neuroflex, "Consulta bitacoras", "Athena")
+    Rel(neuroflex, salud_chile, "Exporta reportes PDF", "Cifrado")
 
 
 
