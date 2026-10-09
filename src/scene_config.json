@@ -1,0 +1,37 @@
+{
+  "version": "1.0.0",
+  "configurations": [
+    {
+      "scene_config_id": "REC-PARK-LVL-FACIL-V1",
+      "difficulty": "facil",
+      "environment": "Parque Urbano",
+      "parameters": {
+        "movement_speed_multiplier": 0.8,
+        "total_targets_to_collect": 5,
+        "target_display_duration_seconds": 15,
+        "distractor_density": "baja",
+        "cognitive_test": {
+          "type": "memoria_inmediata",
+          "stimuli_count": 3,
+          "response_time_limit_seconds": 30
+        }
+      }
+    },
+    {
+      "scene_config_id": "REC-PARK-LVL-DIFICIL-V1",
+      "difficulty": "dificil",
+      "environment": "Parque Urbano",
+      "parameters": {
+        "movement_speed_multiplier": 1.2,
+        "total_targets_to_collect": 12,
+        "target_display_duration_seconds": 6,
+        "distractor_density": "alta",
+        "cognitive_test": {
+          "type": "calculo_y_atencion_dividida",
+          "stimuli_count": 6,
+          "response_time_limit_seconds": 15
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+# Terraform local y estados sensibles
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+.terraform.lock.hcl
+
+# Empaquetado y cache Python
+__pycache__/
+*.py[cod]
+*.zip
+
+# Sistema operativo
+Thumbs.db
+.DS_Store
