@@ -1,0 +1,23 @@
+{
+  "app": "python app.py",
+  "context": {
+    "region": "us-east-1",
+    "systemAccount": "496955374955",
+    "analyticsAccount": "496955374955",
+    "cognitoDomainPrefix": "qualialab-neuroflex-dev",
+    "dashboardCallbackUrls": [
+      "http://localhost:8765/callback"
+    ],
+    "analyticsBucketName": "",
+    "analyticsKeyArn": "",
+    "breakglassPrincipalArns": [],
+    "alertEmail": "cristian@qualialab.cl",
+    "experiencias": [
+      "neuroflex",
+      "deportistas",
+      "estudiantes"
+    ],
+    "termsVersion": "2027-01",
+    "@aws-cdk/core:defaultCrossStackReferences": "strong"
+  }
+}

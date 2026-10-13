@@ -1,0 +1,4 @@
+[
+  {"id": "habA", "nombre": "Hospital A (ejemplo)", "tipo_cliente": "organizacion", "estado": "activo"},
+  {"id": "particulares", "nombre": "Clientes particulares", "tipo_cliente": "particulares", "estado": "activo"}
+]
