@@ -1,9 +1,10 @@
 """Rutas /sessions: registrar y listar sesiones VR del silo del usuario."""
+import json
 import os
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import ClientError
 from nf_common import (ApiError, caller_from_event, handle, json_body, require_group,
                        respond, tenant_context)
@@ -27,34 +28,52 @@ def _post(event, caller, ctx):
     sesion_id = str(body.get("sesion_id") or "")
     if not (8 <= len(sesion_id) <= 64):
         raise ApiError(400, "sesion_id debe ser un identificador generado por el visor")
+    
     experiencia = body.get("experiencia")
     if EXPERIENCIAS and experiencia not in EXPERIENCIAS:
         raise ApiError(400, f"experiencia debe ser una de: {sorted(EXPERIENCIAS)}")
+        
     metricas = body.get("metricas") or {}
-    if not isinstance(metricas, dict) or not all(
-            isinstance(v, (int, Decimal)) for v in metricas.values()):
-        raise ApiError(400, "metricas debe ser un objeto con valores numéricos")
+    telemetria_raw = body.get("telemetria_raw") or []  # Array de eventos masivos de VR
 
     participante_id = _participante(caller, ctx, body.get("participante_id"))
-    perfil = ctx["tables"]["users"].get_item(Key={"participante_id": participante_id}).get("Item")
+    
+    # Búsqueda por la Partition Key real de la tabla users (user_id)
+    perfil = ctx["tables"]["users"].get_item(Key={"user_id": participante_id}).get("Item")
     if not perfil:
         raise ApiError(404, "Participante no registrado")
 
+    # 1. Almacenamiento masivo asíncrono en S3 (Cold Data / Raw Telemetry)
+    if telemetria_raw:
+        bucket_name = ctx["cfg"].get("bucket")
+        if bucket_name:
+            key = f"sessions/{participante_id}/{sesion_id}.json"
+            ctx["s3"].put_object(
+                Bucket=bucket_name,
+                Key=key,
+                Body=json.dumps(
+                    telemetria_raw,
+                    default=lambda o: float(o) if isinstance(o , Decimal) else str(o)),
+                ContentType="application/json"
+            )
+
+    # 2. Almacenamiento liviano en DynamoDB (Hot Data / Summary)
     item = {
+        "session_id": sesion_id,         # Key principal requerida por DynamoDB
+        "sesion_id": sesion_id,          # Mantenido por compatibilidad si la API lo requiere
         "participante_id": participante_id,
-        "sesion_id": sesion_id,
         "experiencia": experiencia,
         "inicio": str(body.get("inicio") or datetime.now(timezone.utc).isoformat()),
         "duracion_seg": int(body.get("duracion_seg") or 0),
         "metricas": metricas,
         "version_app": str(body.get("version_app") or ""),
         "registrado_por": caller.sub,
-        # Se copian del perfil al momento de registrar (los usa la analítica).
         "consentimiento_investigacion": bool(perfil.get("consentimiento_investigacion", False)),
         "tramo_edad": perfil.get("tramo_edad", "sin_dato"),
         "tipo_cliente": ctx["cfg"].get("tipo_cliente", "organizacion"),
         "tenant_id": caller.tenant_id,
     }
+    
     try:
         ctx["tables"]["sessions"].put_item(
             Item=item, ConditionExpression="attribute_not_exists(sesion_id)")
@@ -62,15 +81,18 @@ def _post(event, caller, ctx):
         if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
             return respond(200, {"sesion_id": sesion_id, "duplicada": True})
         raise
-    return respond(201, {"sesion_id": sesion_id})
+        
+    return respond(201, {"sesion_id": sesion_id, "s3_telemetry": bool(telemetria_raw)})
 
 
 def _get(event, caller, ctx):
     qs = event.get("queryStringParameters") or {}
     participante_id = _participante(caller, ctx, qs.get("participante_id"))
-    resp = ctx["tables"]["sessions"].query(
-        KeyConditionExpression=Key("participante_id").eq(participante_id),
-        ScanIndexForward=False, Limit=50)
+    
+    resp = ctx["tables"]["sessions"].scan(
+        FilterExpression=Attr("participante_id").eq(participante_id),
+        Limit=50
+    )
     return respond(200, {"items": resp.get("Items", [])})
 
 
