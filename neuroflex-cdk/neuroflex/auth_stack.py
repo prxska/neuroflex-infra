@@ -1,13 +1,7 @@
-"""Fase 2: autenticación con Amazon Cognito.
-
-- User Pool con plan Essentials (necesario para personalizar el token de acceso).
-- Atributo custom:tenant_id que la aplicación NO puede escribir.
-- Grupos Administrator, Specialist y Particular.
-- Clientes vr-unity y dashboard-django.
-- Trigger Pre Token Generation V2_0 que copia tenant_id al token de acceso.
-"""
+"""Fase 2: autenticación con Amazon Cognito (modo Learner Lab)."""
 from aws_cdk import CfnOutput, Duration, RemovalPolicy, Stack
 from aws_cdk import aws_cognito as cognito
+from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_logs as logs
 from constructs import Construct
@@ -25,6 +19,12 @@ class AuthStack(Stack):
     def __init__(self, scope: Construct, cid: str, *, settings: Settings, **kwargs):
         super().__init__(scope, cid, **kwargs)
 
+        # Referencia al rol pre-existente del Learner Lab
+        lab_role = iam.Role.from_role_arn(
+            self, "LearnerLabRole",
+            f"arn:aws:iam::{self.account}:role/LabRole"
+        )
+
         self.user_pool = cognito.UserPool(
             self, "UserPool",
             user_pool_name="nf-users",
@@ -36,8 +36,6 @@ class AuthStack(Stack):
                 email=cognito.StandardAttribute(required=True, mutable=True)
             ),
             custom_attributes={
-                # Mutable solo por administradores (AdminUpdateUserAttributes);
-                # los clientes de aplicación no tienen permiso de escritura.
                 "tenant_id": cognito.StringAttribute(min_len=3, max_len=20, mutable=True),
             },
             password_policy=cognito.PasswordPolicy(
@@ -59,7 +57,6 @@ class AuthStack(Stack):
                 group_name=name, description=desc,
             )
 
-        # La aplicación puede leer tenant_id pero no escribirlo.
         read_attrs = cognito.ClientAttributes().with_standard_attributes(
             email=True, email_verified=True
         ).with_custom_attributes("tenant_id")
@@ -82,7 +79,7 @@ class AuthStack(Stack):
         self.dashboard_client = self.user_pool.add_client(
             "DashboardClient",
             user_pool_client_name="dashboard-django",
-            generate_secret=False,  # aplicación instalada: usar PKCE
+            generate_secret=False,
             auth_flows=cognito.AuthFlow(user_srp=True),
             o_auth=cognito.OAuthSettings(
                 flows=cognito.OAuthFlows(authorization_code_grant=True),
@@ -112,6 +109,7 @@ class AuthStack(Stack):
             function_name="nf-pre-token",
             runtime=lambda_.Runtime.PYTHON_3_12,
             handler="app.handler",
+            role=lab_role,
             code=lambda_.Code.from_asset(str(ROOT / "lambdas" / "pre_token")),
             timeout=Duration.seconds(5),
             log_group=logs.LogGroup(

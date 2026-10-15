@@ -1,4 +1,4 @@
-"""Fases 3, 5 y 6: tabla tenants, Lambdas compartidas, autorizador y API Gateway."""
+"""Fases 3, 5 y 6: tabla tenants, Lambdas compartidas, autorizador y API Gateway (modo Learner Lab)."""
 from aws_cdk import CfnOutput, Duration, RemovalPolicy, Stack
 from aws_cdk import aws_apigateway as apigw
 from aws_cdk import aws_dynamodb as ddb
@@ -18,6 +18,12 @@ class CoreStack(Stack):
                  user_pool_id: str, app_client_ids: list, **kwargs):
         super().__init__(scope, cid, **kwargs)
 
+        # Referencia al rol pre-existente del Learner Lab
+        lab_role = iam.Role.from_role_arn(
+            self, "LearnerLabRole",
+            f"arn:aws:iam::{self.account}:role/LabRole"
+        )
+
         # ---------- Fase 3: registro de organizaciones ----------
         self.tenants_table = ddb.Table(
             self, "TenantsTable",
@@ -26,25 +32,13 @@ class CoreStack(Stack):
             billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
             point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=True),
-            stream=ddb.StreamViewType.NEW_AND_OLD_IMAGES,  # auditoría de cambios
+            stream=ddb.StreamViewType.NEW_AND_OLD_IMAGES,
             deletion_protection=True,
             removal_policy=RemovalPolicy.RETAIN,
         )
 
         # ---------- Fase 5: rol de las Lambdas compartidas ----------
-        # Solo lee nf-tenants y asume roles nf-tenant-*. NO accede directo a datos.
-        self.shared_role = iam.Role(
-            self, "SharedLambdaRole",
-            role_name=SHARED_LAMBDA_ROLE,
-            assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
-            managed_policies=[iam.ManagedPolicy.from_aws_managed_policy_name(
-                "service-role/AWSLambdaBasicExecutionRole")],
-        )
-        self.tenants_table.grant_read_data(self.shared_role)
-        self.shared_role.add_to_policy(iam.PolicyStatement(
-            actions=["sts:AssumeRole", "sts:TagSession"],
-            resources=[f"arn:aws:iam::{self.account}:role/{TENANT_ROLE_PREFIX}*"],
-        ))
+        self.shared_role = lab_role
 
         common_layer = lambda_.LayerVersion(
             self, "CommonLayer",
@@ -106,6 +100,7 @@ class CoreStack(Stack):
             handler="app.handler",
             code=lambda_.Code.from_asset(str(ROOT / "lambdas" / "authorizer")),
             layers=[deps_layer],
+            role=lab_role,
             memory_size=256,
             timeout=Duration.seconds(5),
             environment={
@@ -120,7 +115,6 @@ class CoreStack(Stack):
                 removal_policy=RemovalPolicy.DESTROY,
             ),
         )
-        self.tenants_table.grant_read_data(authorizer_fn)
 
         authorizer = apigw.TokenAuthorizer(
             self, "TokenAuthorizer",
@@ -129,28 +123,16 @@ class CoreStack(Stack):
             results_cache_ttl=Duration.minutes(5),
         )
 
-        access_logs = logs.LogGroup(
-            self, "ApiAccessLogs",
-            log_group_name="/nf/api/access",
-            retention=logs.RetentionDays.THREE_MONTHS,
-            removal_policy=RemovalPolicy.DESTROY,
-        )
         self.api = apigw.RestApi(
             self, "Api",
             rest_api_name="nf-api",
             description="API NeuroFlex multi-organización",
             endpoint_types=[apigw.EndpointType.REGIONAL],
+            cloud_watch_role=False,
             deploy_options=apigw.StageOptions(
                 stage_name="v1",
                 throttling_rate_limit=20,
                 throttling_burst_limit=40,
-                access_log_destination=apigw.LogGroupLogDestination(access_logs),
-                # Sin cuerpo ni cabeceras: no registra datos personales.
-                access_log_format=apigw.AccessLogFormat.json_with_standard_fields(
-                    caller=False, http_method=True, ip=False, protocol=True,
-                    request_time=True, resource_path=True, response_length=True,
-                    status=True, user=False,
-                ),
             ),
             default_method_options=apigw.MethodOptions(
                 authorizer=authorizer,

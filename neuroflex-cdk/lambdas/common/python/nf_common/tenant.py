@@ -41,7 +41,6 @@ def require_group(caller: Caller, *allowed: str) -> None:
     if not caller.groups.intersection(allowed):
         raise ApiError(403, "No tiene permisos para esta acción")
 
-
 def tenant_context(caller: Caller) -> dict:
     now = time.time()
     hit = _cache.get(caller.tenant_id)
@@ -54,23 +53,32 @@ def tenant_context(caller: Caller) -> dict:
     if item.get("estado") != "activo":
         raise ApiError(403, "Organización suspendida")
 
-    cred = _sts.assume_role(
-        RoleArn=item["rol_arn"],
-        RoleSessionName=f"nf-{caller.tenant_id}-{caller.sub[:24]}",
-        DurationSeconds=900,
-        Tags=[{"Key": "tenant_id", "Value": caller.tenant_id}],
-    )["Credentials"]
-    session = boto3.Session(
-        aws_access_key_id=cred["AccessKeyId"],
-        aws_secret_access_key=cred["SecretAccessKey"],
-        aws_session_token=cred["SessionToken"],
-    )
-    ddb = session.resource("dynamodb")
+    # Bypass de AssumeRole para AWS Learner Lab
+    if "LabRole" in item.get("rol_arn", ""):
+        ddb = boto3.resource("dynamodb")
+        s3_client = boto3.client("s3")
+        expira_time = now + 3600
+    else:
+        cred = _sts.assume_role(
+            RoleArn=item["rol_arn"],
+            RoleSessionName=f"nf-{caller.tenant_id}-{caller.sub[:24]}",
+            DurationSeconds=900,
+            Tags=[{"Key": "tenant_id", "Value": caller.tenant_id}],
+        )["Credentials"]
+        session = boto3.Session(
+            aws_access_key_id=cred["AccessKeyId"],
+            aws_secret_access_key=cred["SecretAccessKey"],
+            aws_session_token=cred["SessionToken"],
+        )
+        ddb = session.resource("dynamodb")
+        s3_client = session.client("s3")
+        expira_time = cred["Expiration"].timestamp()
+
     hit = {
         "cfg": item,
         "tables": {k: ddb.Table(v) for k, v in item["tablas"].items()},
-        "s3": session.client("s3"),
-        "expira": cred["Expiration"].timestamp(),
+        "s3": s3_client,
+        "expira": expira_time,
         "cfg_hasta": now + _CFG_TTL,
     }
     _cache[caller.tenant_id] = hit
