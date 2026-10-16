@@ -1,10 +1,12 @@
-"""Fases 3, 5 y 6: tabla tenants, Lambdas compartidas, autorizador y API Gateway (modo Learner Lab)."""
+"""Fases 3, 5 y 6: tabla tenants, Lambdas compartidas, cola SQS, autorizador y API Gateway (modo Learner Lab)."""
 from aws_cdk import CfnOutput, Duration, RemovalPolicy, Stack
 from aws_cdk import aws_apigateway as apigw
 from aws_cdk import aws_dynamodb as ddb
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
+from aws_cdk import aws_lambda_event_sources as eventsources
 from aws_cdk import aws_logs as logs
+from aws_cdk import aws_sqs as sqs
 from constructs import Construct
 
 from .settings import (ROOT, SHARED_LAMBDA_ROLE, TENANT_ROLE_PREFIX, TENANTS_TABLE,
@@ -18,10 +20,12 @@ class CoreStack(Stack):
                  user_pool_id: str, app_client_ids: list, **kwargs):
         super().__init__(scope, cid, **kwargs)
 
-        # Referencia al rol pre-existente del Learner Lab
+            
+# Referencia al rol pre-existente del Learner Lab (inmutable para evitar iam:PutRolePolicy)
         lab_role = iam.Role.from_role_arn(
             self, "LearnerLabRole",
-            f"arn:aws:iam::{self.account}:role/LabRole"
+            f"arn:aws:iam::{self.account}:role/LabRole",
+            mutable=False
         )
 
         # ---------- Fase 3: registro de organizaciones ----------
@@ -35,6 +39,23 @@ class CoreStack(Stack):
             stream=ddb.StreamViewType.NEW_AND_OLD_IMAGES,
             deletion_protection=True,
             removal_policy=RemovalPolicy.RETAIN,
+        )
+
+        # ---------- Desacople de Ingesta VR: Cola SQS y DLQ ----------
+        self.sessions_dlq = sqs.Queue(
+            self, "SessionsDLQ",
+            queue_name="nf-sessions-dlq",
+            retention_period=Duration.days(14)
+        )
+
+        self.sessions_queue = sqs.Queue(
+            self, "SessionsQueue",
+            queue_name="nf-sessions-queue",
+            visibility_timeout=Duration.seconds(60),
+            dead_letter_queue=sqs.DeadLetterQueue(
+                max_receive_count=3,
+                queue=self.sessions_dlq
+            )
         )
 
         # ---------- Fase 5: rol de las Lambdas compartidas ----------
@@ -53,6 +74,7 @@ class CoreStack(Stack):
             "TERMS_VERSION": settings.terms_version,
             "EXPERIENCIAS": ",".join(settings.experiencias),
             "POWERTOOLS_SERVICE_NAME": "neuroflex",
+            "SQS_QUEUE_URL": self.sessions_queue.queue_url,
         }
 
         def shared_fn(name: str) -> lambda_.Function:
@@ -77,6 +99,31 @@ class CoreStack(Stack):
             )
 
         fns = {n: shared_fn(n) for n in ("sessions", "users", "professions", "terms")}
+
+        # ---------- Worker asíncrono consumidor de SQS ----------
+        worker_fn = lambda_.Function(
+            self, "SessionsWorkerFn",
+            function_name="nf-sessions-worker",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            architecture=lambda_.Architecture.ARM_64,
+            handler="app.handler",
+            code=lambda_.Code.from_asset(str(ROOT / "lambdas" / "sessions_worker")),
+            role=lab_role,
+            memory_size=256,
+            timeout=Duration.seconds(30),
+            log_group=logs.LogGroup(
+                self, "SessionsWorkerLogs",
+                log_group_name="/aws/lambda/nf-sessions-worker",
+                retention=logs.RetentionDays.THREE_MONTHS,
+                removal_policy=RemovalPolicy.DESTROY,
+            ),
+        )
+
+        worker_fn.add_event_source(eventsources.SqsEventSource(
+            self.sessions_queue,
+            batch_size=10,
+            max_batching_window=Duration.seconds(5)
+        ))
 
         # ---------- Fase 6: autorizador ----------
         if not (DEPS_LAYER / "python").exists():
@@ -156,3 +203,4 @@ class CoreStack(Stack):
 
         CfnOutput(self, "ApiUrl", value=self.api.url)
         CfnOutput(self, "TenantsTableName", value=self.tenants_table.table_name)
+        CfnOutput(self, "SessionsQueueUrl", value=self.sessions_queue.queue_url)
