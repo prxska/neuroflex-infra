@@ -33,6 +33,10 @@ NeuroFlex VR es una plataforma SaaS diseñada para ejercitar y evaluar la memori
 ---
 
 ### 3. Modelo de Arquitectura: C4 Nivel 1 (Contexto del Sistema)
+
+
+
+```mermaid
 C4Context
     title C4 Nivel 1: Contexto del Sistema - NeuroFlex VR
 
@@ -40,10 +44,10 @@ C4Context
     Person(especialista, "Especialista", "Kinesiólogo o terapeuta de la institución.")
     Person(admin_inst, "Admin Institución", "Gestiona licencias y autoriza informes.")
     Person(admin_plat, "Admin Plataforma", "Gestiona altas de tenants, límites y celdas.")
-    Person(auditor, "Auditor Legal", "Fiscaliza registros bajo la Ley N.° 21.719.")
+    Person(auditor, "Auditor Legal", "Fiscaliza registros bajo la Ley N.º 21.719.")
 
     Enterprise_Boundary(b0, "Entorno NeuroFlex") {
-        System(neuroflex, "NeuroFlex VR SaaS", "Plataforma central multi-tenant para ingesta, procesamiento de telemetría e IA de evaluación cognitiva.")
+        System(neuroflex, "NeuroFlex VR SaaS", "Plataforma central multi-tenant para ingesta, procesamiento de telemetría e IA")
     }
 
     SystemDb_Ext(emr, "Sistemas Clínicos Locales", "Fichas clínicas institucionales (CESFAM/ELEAM/Clínicas).")
@@ -57,4 +61,4 @@ C4Context
     Rel(admin_plat, neuroflex, "Aprovisiona organizaciones y celdas regionales")
     Rel(auditor, neuroflex, "Consulta bitácoras de acceso y trazabilidad de datos")
     Rel(admin_inst, emr, "Descarga e integra informes aprobados en formato PDF")
-
+```
