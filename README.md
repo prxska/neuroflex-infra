@@ -33,28 +33,28 @@ NeuroFlex VR es una plataforma SaaS diseñada para ejercitar y evaluar la memori
 ---
 
 ### 3. Modelo de Arquitectura: C4 Nivel 1 (Contexto del Sistema)
+C4Context
+    title C4 Nivel 1: Contexto del Sistema - NeuroFlex VR
 
-```mermaid
-flowchart TD
-    classDef person fill:#08427B,stroke:#052A50,color:#ffffff,stroke-width:2px;
-    classDef system fill:#1168BD,stroke:#0B4884,color:#ffffff,stroke-width:2px;
-    classDef ext fill:#4A5568,stroke:#2D3748,color:#ffffff,stroke-width:2px;
+    Person(paciente, "Paciente", "Persona mayor en rehabilitación cognitiva.")
+    Person(especialista, "Especialista", "Kinesiólogo o terapeuta de la institución.")
+    Person(admin_inst, "Admin Institución", "Gestiona licencias y autoriza informes.")
+    Person(admin_plat, "Admin Plataforma", "Gestiona altas de tenants, límites y celdas.")
+    Person(auditor, "Auditor Legal", "Fiscaliza registros bajo la Ley N.° 21.719.")
 
-    paciente["<b>Paciente</b><br/>[Persona]<br/>Persona mayor en rehabilitacion cognitiva"]:::person
-    especialista["<b>Especialista</b><br/>[Persona]<br/>Kinesiologo / Terapeuta"]:::person
-    admin_inst["<b>Admin Institucion</b><br/>[Persona]<br/>Gestion CESFAM / ELEAM"]:::person
-    auditor["<b>Auditor Legal</b><br/>[Persona]<br/>Fiscalizacion Ley 21.719"]:::person
+    Enterprise_Boundary(b0, "Entorno NeuroFlex") {
+        System(neuroflex, "NeuroFlex VR SaaS", "Plataforma central multi-tenant para ingesta, procesamiento de telemetría e IA de evaluación cognitiva.")
+    }
 
-    meta_quest["<b>Meta Quest 3</b><br/>[Dispositivo Externo]<br/>App Unity VR con almacenamiento offline"]:::ext
-    neuroflex["<b>NeuroFlex VR (SaaS Cloud)</b><br/>[Sistema Cloud]<br/>Ingesta asincrona, aislamiento multi-tenant e IA"]:::system
-    salud_chile["<b>Sistemas Locales</b><br/>[Sistema Externo]<br/>Fichas clinicas institucionales"]:::ext
+    SystemDb_Ext(emr, "Sistemas Clínicos Locales", "Fichas clínicas institucionales (CESFAM/ELEAM/Clínicas).")
+    System_Ext(quest, "Visor Meta Quest 3", "Hardware VR con ejecución offline de experiencias.")
 
-    paciente -->|Interactua fisicamente| meta_quest
-    meta_quest -->|Telemetria cifrada HTTPS/JSON| neuroflex
-    especialista -->|Configura y monitorea HTTPS| neuroflex
-    admin_inst -->|Administra licencias HTTPS| neuroflex
-    auditor -->|Consulta bitacoras Athena| neuroflex
-    neuroflex -->|Exporta reportes PDF cifrados| salud_chile
-```
-
+    Rel(paciente, quest, "Ejecuta sesiones de rehabilitación", "Físico")
+    Rel(especialista, neuroflex, "Asigna niveles, pacientes y monitorea resultados")
+    Rel(especialista, quest, "Prepara y opera la sesión VR")
+    Rel(quest, neuroflex, "Envía telemetría de sesiones y eventos VR")
+    Rel(admin_inst, neuroflex, "Administra usuarios y autoriza exportación de informes")
+    Rel(admin_plat, neuroflex, "Aprovisiona organizaciones y celdas regionales")
+    Rel(auditor, neuroflex, "Consulta bitácoras de acceso y trazabilidad de datos")
+    Rel(admin_inst, emr, "Descarga e integra informes aprobados en formato PDF")
 
