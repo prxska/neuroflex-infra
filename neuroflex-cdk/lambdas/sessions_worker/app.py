@@ -1,5 +1,4 @@
 """Worker asíncrono: Consume batches de SQS y persiste en DynamoDB y S3."""
-from aws_cdk import aws_lambda_event_sources as eventsources
 
 import json
 import os
