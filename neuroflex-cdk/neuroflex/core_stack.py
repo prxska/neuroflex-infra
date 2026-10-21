@@ -99,18 +99,23 @@ class CoreStack(Stack):
             )
 
         fns = {n: shared_fn(n) for n in ("sessions", "users", "professions", "terms")}
-
-        # ---------- Worker asíncrono consumidor de SQS ----------
+# ---------- Worker asíncrono consumidor de SQS ----------
         worker_fn = lambda_.Function(
             self, "SessionsWorkerFn",
             function_name="nf-sessions-worker",
             runtime=lambda_.Runtime.PYTHON_3_12,
             architecture=lambda_.Architecture.ARM_64,
-            handler="app.handler",
+            # 1. CAMBIO OBLIGATORIO: Apuntamos al nuevo nombre de archivo
+            handler="worker.handler",
             code=lambda_.Code.from_asset(str(ROOT / "lambdas" / "sessions_worker")),
             role=lab_role,
             memory_size=256,
             timeout=Duration.seconds(30),
+            # 2. CAMBIO OBLIGATORIO: Inyección de contexto arquitectónico
+            environment={
+                "TABLE_NAME": "nf-sessions", 
+                "BUCKET_NAME": "nf-sessions-cold-data"
+            },
             log_group=logs.LogGroup(
                 self, "SessionsWorkerLogs",
                 log_group_name="/aws/lambda/nf-sessions-worker",
