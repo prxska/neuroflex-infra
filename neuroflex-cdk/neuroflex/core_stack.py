@@ -7,6 +7,7 @@ from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_lambda_event_sources as eventsources
 from aws_cdk import aws_logs as logs
 from aws_cdk import aws_sqs as sqs
+from aws_cdk import aws_s3 as s3
 from constructs import Construct
 
 from .settings import (ROOT, SHARED_LAMBDA_ROLE, TENANT_ROLE_PREFIX, TENANTS_TABLE,
@@ -20,8 +21,7 @@ class CoreStack(Stack):
                  user_pool_id: str, app_client_ids: list, **kwargs):
         super().__init__(scope, cid, **kwargs)
 
-            
-# Referencia al rol pre-existente del Learner Lab (inmutable para evitar iam:PutRolePolicy)
+        # Referencia al rol pre-existente del Learner Lab (inmutable para evitar iam:PutRolePolicy)
         lab_role = iam.Role.from_role_arn(
             self, "LearnerLabRole",
             f"arn:aws:iam::{self.account}:role/LabRole",
@@ -99,22 +99,60 @@ class CoreStack(Stack):
             )
 
         fns = {n: shared_fn(n) for n in ("sessions", "users", "professions", "terms")}
-# ---------- Worker asíncrono consumidor de SQS ----------
+
+        # ---------- Worker asíncrono consumidor de SQS ----------
+        
+        # 1. NUEVA TABLA: Estructura estricta para el contrato scenes-v1 (Modelo Pool)
+        self.scenes_table = ddb.Table(
+            self, "NfScenesV1Table",
+            table_name="nf-scenes-v1",
+            partition_key=ddb.Attribute(
+                name="participantId",
+                type=ddb.AttributeType.STRING
+            ),
+            sort_key=ddb.Attribute(
+                name="roundId",
+                type=ddb.AttributeType.STRING
+            ),
+            billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        # 2. NUEVO BUCKET S3: Almacenamiento en Frío (Cold Data)
+        self.cold_data_bucket = s3.Bucket(
+            self, "ColdDataBucket",
+            bucket_name="nf-sessions-cold-data", # Nombre exacto que espera el Worker
+            removal_policy=RemovalPolicy.DESTROY, # Ideal para laboratorio
+            lifecycle_rules=[
+                s3.LifecycleRule(
+                    transitions=[
+                        s3.Transition(
+                            storage_class=s3.StorageClass.INFREQUENT_ACCESS,
+                            transition_after=Duration.days(30)
+                        ),
+                        s3.Transition(
+                            storage_class=s3.StorageClass.GLACIER,
+                            transition_after=Duration.days(90)
+                        )
+                    ]
+                )
+            ]
+        )
+
         worker_fn = lambda_.Function(
             self, "SessionsWorkerFn",
             function_name="nf-sessions-worker",
             runtime=lambda_.Runtime.PYTHON_3_12,
             architecture=lambda_.Architecture.ARM_64,
-            # 1. CAMBIO OBLIGATORIO: Apuntamos al nuevo nombre de archivo
             handler="worker.handler",
             code=lambda_.Code.from_asset(str(ROOT / "lambdas" / "sessions_worker")),
             role=lab_role,
             memory_size=256,
             timeout=Duration.seconds(30),
-            # 2. CAMBIO OBLIGATORIO: Inyección de contexto arquitectónico
             environment={
-                "TABLE_NAME": "nf-sessions", 
-                "BUCKET_NAME": "nf-sessions-cold-data"
+                "TABLE_NAME": "nf-sessions", # Mantenemos la vieja para no romper Expo aún
+                "BUCKET_NAME": self.cold_data_bucket.bucket_name, # Inyección del nuevo bucket
+                "SCENES_TABLE_NAME": self.scenes_table.table_name # Nueva inyección
             },
             log_group=logs.LogGroup(
                 self, "SessionsWorkerLogs",
@@ -124,6 +162,10 @@ class CoreStack(Stack):
             ),
         )
 
+        # 3. Otorgar permisos a la Lambda
+        self.scenes_table.grant_write_data(worker_fn)
+        self.cold_data_bucket.grant_read_write(worker_fn) # Permiso para el bucket S3
+
         worker_fn.add_event_source(eventsources.SqsEventSource(
             self.sessions_queue,
             batch_size=10,
@@ -131,11 +173,13 @@ class CoreStack(Stack):
         ))
 
         # ---------- Fase 6: autorizador ----------
+        # ---------- Fase 6: autorizador ----------
         if not (DEPS_LAYER / "python").exists():
             raise RuntimeError(
                 "Falta la capa de dependencias del autorizador. Ejecute primero:\n"
                 "  ./scripts/build_layer.sh"
             )
+        
         deps_layer = lambda_.LayerVersion(
             self, "DepsLayer",
             layer_version_name="nf-deps",
@@ -144,6 +188,7 @@ class CoreStack(Stack):
             compatible_architectures=[lambda_.Architecture.X86_64],
             description="PyJWT[crypto] para validar tokens de Cognito",
         )
+        
         authorizer_fn = lambda_.Function(
             self, "AuthorizerFn",
             function_name="nf-authorizer",
@@ -198,11 +243,13 @@ class CoreStack(Stack):
             "professions": ["GET"],
             "terms": ["GET"],
         }
+        
         for name, methods in routes.items():
             res = self.api.root.add_resource(name)
             integ = apigw.LambdaIntegration(fns[name])
             for m in methods:
                 res.add_method(m, integ)
+                
         consent = self.api.root.get_resource("terms").add_resource("consent")
         consent.add_method("POST", apigw.LambdaIntegration(fns["terms"]))
 
