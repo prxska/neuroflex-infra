@@ -1,4 +1,13 @@
+# =====================================
+# AWS CDK (CRÍTICO)
+# =====================================
+cdk.out/
+.cdk.staging/
+cdk.context.json
+
+# =====================================
 # Terraform local y estados sensibles
+# =====================================
 .terraform/
 *.tfstate
 *.tfstate.*
@@ -6,13 +15,36 @@
 *.tfvars.json
 .terraform.lock.hcl
 
-# Empaquetado y cache Python
+# =====================================
+# Python y Entornos Virtuales
+# =====================================
 __pycache__/
 *.py[cod]
 *.zip
+.venv/
+venv/
+env/
+ENV/
 
-# Sistema operativo
+# =====================================
+# Capas Lambda
+# =====================================
+# Ignoramos las dependencias descargadas, pero CONSERVAMOS el código fuente.
+layers/deps/
+layers/python/
+
+# =====================================
+# Archivos secretos y de entorno
+# =====================================
+.env
+.env.local
+*.pem
+
+# =====================================
+# Sistema operativo y editores
+# =====================================
 Thumbs.db
 .DS_Store
-.venv/
-layers/
+.vscode/
+.idea/
+*.log

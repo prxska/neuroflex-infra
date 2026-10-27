@@ -2,7 +2,7 @@
   "contractVersion": "scenes-v1",
   "rounds": [
     {
-      "participantId": "p-test-001",
+      "participantId": "P001",
       "sessionId": "s-test-999",
       "roundId": "r-puzzle-001",
       "scenarioId": "puzzle",
@@ -28,7 +28,7 @@
       "rotationEnabled": false
     },
     {
-      "participantId": "p-test-001",
+      "participantId": "P001",
       "sessionId": "s-test-999",
       "roundId": "r-memory-001",
       "scenarioId": "memory",
@@ -56,7 +56,7 @@
       "deckId": "deck-b"
     },
     {
-      "participantId": "p-test-001",
+      "participantId": "P001",
       "sessionId": "s-test-999",
       "roundId": "r-pigeons-001",
       "scenarioId": "pigeons",

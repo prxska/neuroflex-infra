@@ -38,6 +38,8 @@ def process_scenes_v1(body, table):
     rounds = body.get("rounds", [])
     if not rounds or not table: return
 
+    processed_rounds = [] # Aquí guardaremos el JSON procesado para S3
+
     # 1. PRIMERO DynamoDB (Dato clínico prioritario)
     with table.batch_writer() as batch:
         for r in rounds:
@@ -97,8 +99,11 @@ def process_scenes_v1(body, table):
                 "metrics": metrics
             }
             batch.put_item(Item=float_to_decimal(item))
+            
+            # Guardamos el item procesado en memoria para el paso 2
+            processed_rounds.append(item)
 
-    # 2. DESPUÉS S3 (Cold Data), aislado para que un fallo no tumbe la ingesta
+    # 2. DESPUÉS S3 (Cold Data), aislado y enriquecido
     if BUCKET_NAME:
         try:
             participant_id = rounds[0].get("participantId", "unknown")
@@ -106,10 +111,16 @@ def process_scenes_v1(body, table):
             now = datetime.utcnow()
             key = f"scenes-v1/{now.year}/{now.month:02d}/{participant_id}/{session_id}.json"
             
+            # Estructura clínica: Input original + Métricas calculadas
+            enriched_payload = {
+                "raw_input": body,
+                "processed_rounds": processed_rounds
+            }
+            
             s3_client.put_object(
                 Bucket=BUCKET_NAME,
                 Key=key,
-                Body=json.dumps(body),
+                Body=json.dumps(enriched_payload, default=str),
                 ContentType="application/json"
             )
         except Exception as e:

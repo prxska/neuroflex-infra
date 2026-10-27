@@ -4,7 +4,6 @@ from aws_cdk import aws_apigateway as apigw
 from aws_cdk import aws_dynamodb as ddb
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
-from aws_cdk import aws_lambda_event_sources as eventsources
 from aws_cdk import aws_logs as logs
 from aws_cdk import aws_sqs as sqs
 from aws_cdk import aws_s3 as s3
@@ -90,6 +89,7 @@ class CoreStack(Stack):
                 memory_size=256,
                 timeout=Duration.seconds(10),
                 environment=common_env,
+                tracing=lambda_.Tracing.ACTIVE, # <--- X-RAY ACTIVADO
                 log_group=logs.LogGroup(
                     self, f"{name.capitalize()}Logs",
                     log_group_name=f"/aws/lambda/nf-{name}",
@@ -121,8 +121,8 @@ class CoreStack(Stack):
         # 2. NUEVO BUCKET S3: Almacenamiento en Frío (Cold Data)
         self.cold_data_bucket = s3.Bucket(
             self, "ColdDataBucket",
-            bucket_name="nf-sessions-cold-data", # Nombre exacto que espera el Worker
-            removal_policy=RemovalPolicy.DESTROY, # Ideal para laboratorio
+            bucket_name="nf-sessions-cold-data", 
+            removal_policy=RemovalPolicy.DESTROY, 
             lifecycle_rules=[
                 s3.LifecycleRule(
                     transitions=[
@@ -150,10 +150,11 @@ class CoreStack(Stack):
             memory_size=256,
             timeout=Duration.seconds(30),
             environment={
-                "TABLE_NAME": "nf-sessions", # Mantenemos la vieja para no romper Expo aún
-                "BUCKET_NAME": self.cold_data_bucket.bucket_name, # Inyección del nuevo bucket
-                "SCENES_TABLE_NAME": self.scenes_table.table_name # Nueva inyección
+                "TABLE_NAME": "nf-sessions", 
+                "BUCKET_NAME": self.cold_data_bucket.bucket_name, 
+                "SCENES_TABLE_NAME": self.scenes_table.table_name 
             },
+            tracing=lambda_.Tracing.ACTIVE, # <--- X-RAY ACTIVADO
             log_group=logs.LogGroup(
                 self, "SessionsWorkerLogs",
                 log_group_name="/aws/lambda/nf-sessions-worker",
@@ -162,17 +163,45 @@ class CoreStack(Stack):
             ),
         )
 
-        # 3. Otorgar permisos a la Lambda
+        # 3. Otorgar permisos a la Lambda de Ingesta
         self.scenes_table.grant_write_data(worker_fn)
-        self.cold_data_bucket.grant_read_write(worker_fn) # Permiso para el bucket S3
+        self.cold_data_bucket.grant_read_write(worker_fn) 
 
-        worker_fn.add_event_source(eventsources.SqsEventSource(
-            self.sessions_queue,
+        # CORRECCIÓN DEFINITIVA: Usar CfnEventSourceMapping para forzar enabled=True a nivel de CloudFormation
+        lambda_.CfnEventSourceMapping(
+            self, "SqsEventSourceMapping",
+            event_source_arn=self.sessions_queue.queue_arn,
+            function_name=worker_fn.function_name,
             batch_size=10,
-            max_batching_window=Duration.seconds(5)
-        ))
+            maximum_batching_window_in_seconds=5,
+            enabled=True
+        )
 
-        # ---------- Fase 6: autorizador ----------
+        # ---------- NUEVA LAMBDA PARA LEER MÉTRICAS DE UNITY (FRONTEND) ----------
+        scenes_reader_fn = lambda_.Function(
+            self, "ScenesReaderFn",
+            function_name="nf-scenes-reader",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            architecture=lambda_.Architecture.ARM_64,
+            handler="app.handler",
+            code=lambda_.Code.from_asset(str(ROOT / "lambdas" / "scenes_reader")),
+            role=lab_role,
+            memory_size=256,
+            timeout=Duration.seconds(10),
+            environment={
+                "SCENES_TABLE_NAME": self.scenes_table.table_name
+            },
+            tracing=lambda_.Tracing.ACTIVE, # <--- X-RAY ACTIVADO
+            log_group=logs.LogGroup(
+                self, "ScenesReaderLogs",
+                log_group_name="/aws/lambda/nf-scenes-reader",
+                retention=logs.RetentionDays.THREE_MONTHS,
+                removal_policy=RemovalPolicy.DESTROY,
+            ),
+        )
+        
+        self.scenes_table.grant_read_data(scenes_reader_fn)
+
         # ---------- Fase 6: autorizador ----------
         if not (DEPS_LAYER / "python").exists():
             raise RuntimeError(
@@ -205,6 +234,7 @@ class CoreStack(Stack):
                 "APP_CLIENT_IDS": ",".join(app_client_ids),
                 "TENANTS_TABLE": TENANTS_TABLE,
             },
+            tracing=lambda_.Tracing.ACTIVE, # <--- X-RAY ACTIVADO
             log_group=logs.LogGroup(
                 self, "AuthorizerLogs",
                 log_group_name="/aws/lambda/nf-authorizer",
@@ -230,6 +260,7 @@ class CoreStack(Stack):
                 stage_name="v1",
                 throttling_rate_limit=20,
                 throttling_burst_limit=40,
+                tracing_enabled=True, # <--- X-RAY ACTIVADO EN API GATEWAY
             ),
             default_method_options=apigw.MethodOptions(
                 authorizer=authorizer,
@@ -252,6 +283,40 @@ class CoreStack(Stack):
                 
         consent = self.api.root.get_resource("terms").add_resource("consent")
         consent.add_method("POST", apigw.LambdaIntegration(fns["terms"]))
+
+        # --- NUEVA RUTA PARA EL DASHBOARD (UNITY / SCENES-V1) ---
+        scenes_res = self.api.root.add_resource("scenes")
+        scenes_res.add_method("GET", apigw.LambdaIntegration(scenes_reader_fn))
+
+        # --- SOLUCIÓN AL ERROR CORS ---
+        scenes_res.add_method(
+            "OPTIONS",
+            apigw.MockIntegration(
+                integration_responses=[
+                    apigw.IntegrationResponse(
+                        status_code="200",
+                        response_parameters={
+                            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization'",
+                            "method.response.header.Access-Control-Allow-Origin": "'*'",
+                            "method.response.header.Access-Control-Allow-Methods": "'OPTIONS,GET'",
+                        },
+                    )
+                ],
+                passthrough_behavior=apigw.PassthroughBehavior.NEVER,
+                request_templates={"application/json": '{"statusCode": 200}'},
+            ),
+            method_responses=[
+                apigw.MethodResponse(
+                    status_code="200",
+                    response_parameters={
+                        "method.response.header.Access-Control-Allow-Headers": True,
+                        "method.response.header.Access-Control-Allow-Origin": True,
+                        "method.response.header.Access-Control-Allow-Methods": True,
+                    },
+                )
+            ],
+            authorization_type=apigw.AuthorizationType.NONE,
+        )
 
         CfnOutput(self, "ApiUrl", value=self.api.url)
         CfnOutput(self, "TenantsTableName", value=self.tenants_table.table_name)
