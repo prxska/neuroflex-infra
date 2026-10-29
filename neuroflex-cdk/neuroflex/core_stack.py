@@ -20,7 +20,7 @@ class CoreStack(Stack):
                  user_pool_id: str, app_client_ids: list, **kwargs):
         super().__init__(scope, cid, **kwargs)
 
-        # Referencia al rol pre-existente del Learner Lab (inmutable para evitar iam:PutRolePolicy)
+        # Referencia al rol pre-existente del Learner Lab
         lab_role = iam.Role.from_role_arn(
             self, "LearnerLabRole",
             f"arn:aws:iam::{self.account}:role/LabRole",
@@ -89,7 +89,7 @@ class CoreStack(Stack):
                 memory_size=256,
                 timeout=Duration.seconds(10),
                 environment=common_env,
-                tracing=lambda_.Tracing.ACTIVE, # <--- X-RAY ACTIVADO
+                tracing=lambda_.Tracing.ACTIVE,
                 log_group=logs.LogGroup(
                     self, f"{name.capitalize()}Logs",
                     log_group_name=f"/aws/lambda/nf-{name}",
@@ -102,12 +102,13 @@ class CoreStack(Stack):
 
         # ---------- Worker asíncrono consumidor de SQS ----------
         
-        # 1. NUEVA TABLA: Estructura estricta para el contrato scenes-v1 (Modelo Pool)
+        # 1. NUEVA TABLA: Estructura Multi-Tenant (Aislamiento)
+        # Cambiamos el nombre a nf-scenes-v1-mt para forzar la creación de la nueva tabla
         self.scenes_table = ddb.Table(
             self, "NfScenesV1Table",
-            table_name="nf-scenes-v1",
+            table_name="nf-scenes-v1-mt", 
             partition_key=ddb.Attribute(
-                name="participantId",
+                name="tenantParticipantKey",
                 type=ddb.AttributeType.STRING
             ),
             sort_key=ddb.Attribute(
@@ -154,7 +155,7 @@ class CoreStack(Stack):
                 "BUCKET_NAME": self.cold_data_bucket.bucket_name, 
                 "SCENES_TABLE_NAME": self.scenes_table.table_name 
             },
-            tracing=lambda_.Tracing.ACTIVE, # <--- X-RAY ACTIVADO
+            tracing=lambda_.Tracing.ACTIVE,
             log_group=logs.LogGroup(
                 self, "SessionsWorkerLogs",
                 log_group_name="/aws/lambda/nf-sessions-worker",
@@ -167,7 +168,6 @@ class CoreStack(Stack):
         self.scenes_table.grant_write_data(worker_fn)
         self.cold_data_bucket.grant_read_write(worker_fn) 
 
-        # CORRECCIÓN DEFINITIVA: Usar CfnEventSourceMapping para forzar enabled=True a nivel de CloudFormation
         lambda_.CfnEventSourceMapping(
             self, "SqsEventSourceMapping",
             event_source_arn=self.sessions_queue.queue_arn,
@@ -191,7 +191,7 @@ class CoreStack(Stack):
             environment={
                 "SCENES_TABLE_NAME": self.scenes_table.table_name
             },
-            tracing=lambda_.Tracing.ACTIVE, # <--- X-RAY ACTIVADO
+            tracing=lambda_.Tracing.ACTIVE,
             log_group=logs.LogGroup(
                 self, "ScenesReaderLogs",
                 log_group_name="/aws/lambda/nf-scenes-reader",
@@ -234,7 +234,7 @@ class CoreStack(Stack):
                 "APP_CLIENT_IDS": ",".join(app_client_ids),
                 "TENANTS_TABLE": TENANTS_TABLE,
             },
-            tracing=lambda_.Tracing.ACTIVE, # <--- X-RAY ACTIVADO
+            tracing=lambda_.Tracing.ACTIVE,
             log_group=logs.LogGroup(
                 self, "AuthorizerLogs",
                 log_group_name="/aws/lambda/nf-authorizer",
@@ -260,7 +260,7 @@ class CoreStack(Stack):
                 stage_name="v1",
                 throttling_rate_limit=20,
                 throttling_burst_limit=40,
-                tracing_enabled=True, # <--- X-RAY ACTIVADO EN API GATEWAY
+                tracing_enabled=True,
             ),
             default_method_options=apigw.MethodOptions(
                 authorizer=authorizer,

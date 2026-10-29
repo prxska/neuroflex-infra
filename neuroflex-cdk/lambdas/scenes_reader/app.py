@@ -5,7 +5,7 @@ from boto3.dynamodb.conditions import Key
 from decimal import Decimal
 
 dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table(os.environ.get('SCENES_TABLE_NAME', 'nf-scenes-v1'))
+table = dynamodb.Table(os.environ.get('SCENES_TABLE_NAME', 'nf-scenes-v1-mt'))
 
 def decimal_default(obj):
     if isinstance(obj, Decimal):
@@ -27,6 +27,9 @@ def handler(event, context):
 
         params = event.get('queryStringParameters') or {}
         participant_id = params.get('participantId')
+        
+        # Extraemos el Tenant de la URL (o por defecto 'habaA' si no viene)
+        tenant_id = params.get('tenantId', 'habaA')
 
         if not participant_id:
             return {
@@ -35,8 +38,12 @@ def handler(event, context):
                 'body': json.dumps({'error': 'participantId es requerido'})
             }
 
+        # AISLAMIENTO: Construimos la llave compuesta "clinica#paciente"
+        composite_key = f"{tenant_id}#{participant_id}"
+
+        # Consultamos usando la nueva Partition Key
         response = table.query(
-            KeyConditionExpression=Key('participantId').eq(participant_id)
+            KeyConditionExpression=Key('tenantParticipantKey').eq(composite_key)
         )
         items = response.get('Items', [])
         

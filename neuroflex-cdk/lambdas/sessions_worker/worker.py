@@ -34,11 +34,14 @@ def handler(event, context):
 
 
 def process_scenes_v1(body, table):
-    """Procesamiento estricto basado en el contrato de métricas."""
+    """Procesamiento estricto basado en el contrato de métricas con aislamiento Multi-Tenant."""
     rounds = body.get("rounds", [])
     if not rounds or not table: return
 
-    processed_rounds = [] # Aquí guardaremos el JSON procesado para S3
+    processed_rounds = []
+    
+    # Extraemos el tenant (Clínica). Por defecto 'habaA' si no viene.
+    tenant_id = body.get("tenantId", "habaA")
 
     # 1. PRIMERO DynamoDB (Dato clínico prioritario)
     with table.batch_writer() as batch:
@@ -89,8 +92,10 @@ def process_scenes_v1(body, table):
                     except Exception:
                         metrics["responseTimeSeconds"] = None
 
-            # 3. Upsert Idempotente: participantId (PK) + roundId (SK)
+            # 2. Upsert Idempotente Multi-Tenant
             item = {
+                "tenantParticipantKey": f"{tenant_id}#{r.get('participantId')}", # <--- LLAVE COMPUESTA
+                "tenantId": tenant_id,
                 "participantId": r.get("participantId"),
                 "roundId": r.get("roundId"),
                 "sessionId": r.get("sessionId"),
@@ -99,19 +104,17 @@ def process_scenes_v1(body, table):
                 "metrics": metrics
             }
             batch.put_item(Item=float_to_decimal(item))
-            
-            # Guardamos el item procesado en memoria para el paso 2
             processed_rounds.append(item)
 
-    # 2. DESPUÉS S3 (Cold Data), aislado y enriquecido
+    # 3. DESPUÉS S3 (Cold Data), aislado por Tenant
     if BUCKET_NAME:
         try:
             participant_id = rounds[0].get("participantId", "unknown")
             session_id = rounds[0].get("sessionId", "unknown")
             now = datetime.utcnow()
-            key = f"scenes-v1/{now.year}/{now.month:02d}/{participant_id}/{session_id}.json"
+            # Aislamiento en S3: Agregamos el tenant_id a la ruta
+            key = f"scenes-v1/{tenant_id}/{now.year}/{now.month:02d}/{participant_id}/{session_id}.json"
             
-            # Estructura clínica: Input original + Métricas calculadas
             enriched_payload = {
                 "raw_input": body,
                 "processed_rounds": processed_rounds
