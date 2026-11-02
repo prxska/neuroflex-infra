@@ -46,7 +46,9 @@ def handler(event, context):
         key = _jwks.get_signing_key_from_jwt(token).key
         claims = jwt.decode(token, key, algorithms=["RS256"], issuer=ISSUER,
                             options={"require": ["exp", "iss", "sub", "token_use"]})
-    except jwt.PyJWTError:
+    except jwt.PyJWTError as e:
+        # Imprimimos el error real en CloudWatch
+        print(f"[ERROR JWT] Falló la validación: {type(e).__name__} - {str(e)}")
         raise Exception("Unauthorized")
 
     if claims.get("token_use") != "access" or claims.get("client_id") not in CLIENT_IDS:

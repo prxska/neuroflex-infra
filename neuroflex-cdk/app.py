@@ -13,8 +13,10 @@ from neuroflex.tenant_stack import TenantStack
 app = cdk.App()
 settings = Settings.from_context(app.node)
 
-system_env = cdk.Environment(account=settings.system_account, region=settings.region)
-analytics_env = cdk.Environment(account=settings.analytics_account, region=settings.region)
+# CAMBIO CRÍTICO: Forzamos la nueva cuenta de AWS (058264412508) y la región.
+# Esto evita que CDK siga leyendo la cuenta vieja desde settings.py o cdk.json
+system_env = cdk.Environment(account="058264412508", region="us-east-1")
+analytics_env = cdk.Environment(account="058264412508", region="us-east-1")
 
 # Sintetizador para desplegar con credenciales directas de CLI sin requerir roles globales de CDK Bootstrap
 synthesizer = cdk.CliCredentialsStackSynthesizer()

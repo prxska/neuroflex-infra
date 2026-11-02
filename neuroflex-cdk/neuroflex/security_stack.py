@@ -1,11 +1,4 @@
-"""Fase 8: acceso de emergencia (break-glass) auditado.
-
-- Rol nf-breakglass, asumible solo con MFA y por las personas indicadas.
-- Alerta por correo cada vez que alguien lo asume (EventBridge + SNS).
-
-Requisito: un trail de CloudTrail activo (por ejemplo, el trail de la
-organización creado en la fase 1), para que EventBridge reciba los eventos.
-"""
+"""Fase 8: acceso de emergencia (break-glass) auditado."""
 from aws_cdk import Duration, Stack
 from aws_cdk import aws_events as events
 from aws_cdk import aws_events_targets as targets
@@ -27,17 +20,19 @@ class SecurityStack(Stack):
 
         principals = settings.breakglass_principal_arns
         if principals:
-            role = iam.Role(
-                self, "BreakGlassRole",
-                role_name=BREAKGLASS_ROLE,
-                description="Acceso de emergencia auditado. Documentar cada uso.",
-                assumed_by=iam.CompositePrincipal(
-                    *[iam.ArnPrincipal(a) for a in principals]
-                ).with_conditions({"Bool": {"aws:MultiFactorAuthPresent": "true"}}),
-                max_session_duration=Duration.hours(1),
-            )
-            role.add_managed_policy(iam.ManagedPolicy.from_aws_managed_policy_name(
-                "ReadOnlyAccess"))
+            # COMENTADO TEMPORALMENTE POR RESTRICCIÓN DEL LEARNER LAB
+            # role = iam.Role(
+            #     self, "BreakGlassRole",
+            #     role_name=BREAKGLASS_ROLE,
+            #     description="Acceso de emergencia auditado. Documentar cada uso.",
+            #     assumed_by=iam.CompositePrincipal(
+            #         *[iam.ArnPrincipal(a) for a in principals]
+            #     ).with_conditions({"Bool": {"aws:MultiFactorAuthPresent": "true"}}),
+            #     max_session_duration=Duration.hours(1),
+            # )
+            # role.add_managed_policy(iam.ManagedPolicy.from_aws_managed_policy_name(
+            #     "ReadOnlyAccess"))
+            pass
 
         events.Rule(
             self, "BreakGlassAssumed",

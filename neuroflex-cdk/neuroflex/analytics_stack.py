@@ -29,8 +29,6 @@ class AnalyticsStack(Stack):
             enable_key_rotation=True,
             removal_policy=RemovalPolicy.RETAIN,
         )
-        # Se usa la cuenta como principal + condición sobre el rol exacto, para que la
-        # política sea válida aunque el rol aún no exista en la cuenta del sistema.
         key.add_to_resource_policy(iam.PolicyStatement(
             actions=["kms:GenerateDataKey", "kms:Encrypt"],
             principals=[system_root],
@@ -67,7 +65,7 @@ class AnalyticsStack(Stack):
             enforce_ssl=True,
             lifecycle_rules=[s3.LifecycleRule(expiration=Duration.days(30))],
             removal_policy=RemovalPolicy.DESTROY,
-            auto_delete_objects=True,
+            # auto_delete_objects=True,  <--- ELIMINADO PARA LEARNER LAB
         )
 
         glue.CfnDatabase(
@@ -130,7 +128,7 @@ class AnalyticsStack(Stack):
             state="ENABLED",
             work_group_configuration=athena.CfnWorkGroup.WorkGroupConfigurationProperty(
                 enforce_work_group_configuration=True,
-                bytes_scanned_cutoff_per_query=1024 ** 3,  # 1 GB por consulta
+                bytes_scanned_cutoff_per_query=1024 ** 3,
                 publish_cloud_watch_metrics_enabled=True,
                 result_configuration=athena.CfnWorkGroup.ResultConfigurationProperty(
                     output_location=f"s3://{results.bucket_name}/",
