@@ -1,4 +1,4 @@
-# Documento de Arquitectura de Software (SAD)
+# NeuroFlex VR - Infraestructura Cloud (Backend)
 ## Plataforma SaaS NeuroFlex VR
 
 
@@ -16,7 +16,7 @@ En Chile, la población de 60 años o más aumentará del 18,1% al 32,1% (INE). 
 #### 1.2. Solución Propuesta
 NeuroFlex VR es una plataforma SaaS diseñada para ejercitar y evaluar la memoria y la atención mediante realidad virtual en centros como CESFAM, ELEAM y clínicas privadas. La arquitectura garantiza tolerancia a conexiones inestables, almacenamiento inmutable y aislamiento estricto entre instituciones médicas bajo el marco de la Ley N.º 21.719.
 
-# NeuroFlex VR - Infraestructura Cloud (Backend)
+
 
 Este repositorio contiene la Infraestructura como Código (IaC) y las funciones Serverless (Lambdas) de la plataforma NeuroFlex VR. Está construido usando **AWS CDK (Python)**.
 
