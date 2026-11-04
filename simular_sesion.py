@@ -1,23 +1,25 @@
 import boto3
 import json
+import uuid
 
 sqs = boto3.client('sqs', region_name='us-east-1')
-# Usamos la URL de tu nueva cuenta
 queue_url = "https://sqs.us-east-1.amazonaws.com/058264412508/nf-sessions-queue"
 
-# Payload completo con todos los campos que pide el contrato scenes-v1
+session_id = f"VR-FULL-IA-{str(uuid.uuid4())[:6].upper()}"
+
+# Payload con TODOS los campos obligatorios del contrato
 payload = {
     "contractVersion": "scenes-v1",
     "tenantId": "habaA",
     "rounds": [
         {
             "participantId": "P001",
-            "sessionId": "S-PUZZLE-NUEVO",
-            "roundId": "r-puzzle-99",
-            "scenarioId": "puzzle",
+            "sessionId": session_id,
+            "roundId": f"r-memory-{str(uuid.uuid4())[:4]}",
+            "scenarioId": "memory",
             "difficultyLevel": 1,
-            "startedAt": "2026-11-02T14:00:00.000Z",
-            "endedAt": "2026-11-02T14:01:05.000Z",
+            "startedAt": "2026-11-03T14:05:00.000Z",
+            "endedAt": "2026-11-03T14:06:00.000Z",
             "status": "completed",
             "pausedDurationMs": 0,
             "scenarioVersion": "1.0.0",
@@ -28,19 +30,21 @@ payload = {
             "distractionIntensity": "none",
             "distractionDurationMs": 0,
             "comparisonGroupId": None,
-            "totalPieces": 8,
-            "correctPlacements": 8,
-            "incorrectPlacements": 1,
+            "totalCards": 8,
+            "totalPairs": 4,
+            "correctPairAttempts": 4,
+            "incorrectPairAttempts": 1,
+            "pairsFound": 4,
+            "activeTimeMs": 45000,
             "aidsUsed": 0,
-            "activeTimeMs": 35000,
-            "puzzleId": "puzzle-a",
-            "rotationEnabled": False
+            "previewDurationMs": 5000,
+            "deckId": "deck-b"
         }
     ]
 }
 
 try:
-    response = sqs.send_message(QueueUrl=queue_url, MessageBody=json.dumps(payload))
-    print(f"✅ Mensaje enviado exitosamente. MessageId: {response['MessageId']}")
+    res = sqs.send_message(QueueUrl=queue_url, MessageBody=json.dumps(payload))
+    print(f"🚀 Sesión perfecta enviada. ID: {session_id}")
 except Exception as e:
-    print(f"❌ Error al enviar: {e}")
+    print(f"❌ Error: {e}")

@@ -94,14 +94,17 @@ def process_scenes_v1(body, table):
 
             # 2. Upsert Idempotente Multi-Tenant
             item = {
-                "tenantParticipantKey": f"{tenant_id}#{r.get('participantId')}", # <--- LLAVE COMPUESTA
+                "tenantParticipantKey": f"{tenant_id}#{r.get('participantId')}",
                 "tenantId": tenant_id,
                 "participantId": r.get("participantId"),
                 "roundId": r.get("roundId"),
                 "sessionId": r.get("sessionId"),
                 "scenarioId": scenario,
                 "status": status,
-                "metrics": metrics
+                "metrics": metrics,
+                "resumen_ia": "Pendiente de procesamiento por IA local.", # <--- Se guarda pendiente para el polling
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "raw_round": r
             }
             batch.put_item(Item=float_to_decimal(item))
             processed_rounds.append(item)

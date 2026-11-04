@@ -50,7 +50,7 @@ class CoreStack(Stack):
         self.sessions_queue = sqs.Queue(
             self, "SessionsQueue",
             queue_name="nf-sessions-queue",
-            visibility_timeout=Duration.seconds(60),
+            visibility_timeout=Duration.seconds(90), # Aumentado para que la IA termine
             dead_letter_queue=sqs.DeadLetterQueue(
                 max_receive_count=3,
                 queue=self.sessions_dlq
@@ -103,7 +103,6 @@ class CoreStack(Stack):
         # ---------- Worker asíncrono consumidor de SQS ----------
         
         # 1. NUEVA TABLA: Estructura Multi-Tenant (Aislamiento)
-        # Cambiamos el nombre a nf-scenes-v1-mt para forzar la creación de la nueva tabla
         self.scenes_table = ddb.Table(
             self, "NfScenesV1Table",
             table_name="nf-scenes-v1-mt", 
@@ -149,11 +148,13 @@ class CoreStack(Stack):
             code=lambda_.Code.from_asset(str(ROOT / "lambdas" / "sessions_worker")),
             role=lab_role,
             memory_size=256,
-            timeout=Duration.seconds(30),
+            timeout=Duration.seconds(300), # AUMENTADO A 90s PARA LA IA
             environment={
                 "TABLE_NAME": "nf-sessions", 
                 "BUCKET_NAME": self.cold_data_bucket.bucket_name, 
-                "SCENES_TABLE_NAME": self.scenes_table.table_name 
+                "SCENES_TABLE_NAME": self.scenes_table.table_name,
+                # URL DE CLOUDFLARE HACIA TU PC
+               "AI_API_URL": "https://contribute-collector-vhs-granted.trycloudflare.com/v1/summaries", 
             },
             tracing=lambda_.Tracing.ACTIVE,
             log_group=logs.LogGroup(
@@ -167,6 +168,7 @@ class CoreStack(Stack):
         # 3. Otorgar permisos a la Lambda de Ingesta
         self.scenes_table.grant_write_data(worker_fn)
         self.cold_data_bucket.grant_read_write(worker_fn) 
+        self.sessions_queue.grant_consume_messages(worker_fn)
 
         lambda_.CfnEventSourceMapping(
             self, "SqsEventSourceMapping",
