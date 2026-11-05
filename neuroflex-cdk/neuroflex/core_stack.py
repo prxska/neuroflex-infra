@@ -50,7 +50,7 @@ class CoreStack(Stack):
         self.sessions_queue = sqs.Queue(
             self, "SessionsQueue",
             queue_name="nf-sessions-queue",
-            visibility_timeout=Duration.seconds(90), # Aumentado para que la IA termine
+            visibility_timeout=Duration.seconds(360), # Aumentado para que la IA termine
             dead_letter_queue=sqs.DeadLetterQueue(
                 max_receive_count=3,
                 queue=self.sessions_dlq
@@ -204,6 +204,32 @@ class CoreStack(Stack):
         
         self.scenes_table.grant_read_data(scenes_reader_fn)
 
+                # ---------- NUEVA LAMBDA PARA ELIMINAR SESIONES ----------
+        delete_session_fn = lambda_.Function(
+            self, "DeleteSessionFn",
+            function_name="nf-delete-session",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            architecture=lambda_.Architecture.ARM_64,
+            handler="app.handler",
+            code=lambda_.Code.from_asset(str(ROOT / "lambdas" / "delete_session")),
+            role=lab_role,
+            memory_size=256,
+            timeout=Duration.seconds(10),
+            environment={
+                "SCENES_TABLE_NAME": self.scenes_table.table_name
+            },
+            tracing=lambda_.Tracing.ACTIVE,
+            log_group=logs.LogGroup(
+                self, "DeleteSessionLogs",
+                log_group_name="/aws/lambda/nf-delete-session",
+                retention=logs.RetentionDays.THREE_MONTHS,
+                removal_policy=RemovalPolicy.DESTROY,
+            ),
+        )
+        
+        # Otorgar permisos de lectura y escritura a la nueva Lambda
+        self.scenes_table.grant_read_write_data(delete_session_fn)
+
         # ---------- Fase 6: autorizador ----------
         if not (DEPS_LAYER / "python").exists():
             raise RuntimeError(
@@ -290,6 +316,10 @@ class CoreStack(Stack):
         scenes_res = self.api.root.add_resource("scenes")
         scenes_res.add_method("GET", apigw.LambdaIntegration(scenes_reader_fn))
 
+        # BORRADO DE SESSIONES DEL DASHBOARD
+    
+        scenes_res.add_method("DELETE", apigw.LambdaIntegration(delete_session_fn))
+
         # --- SOLUCIÓN AL ERROR CORS ---
         scenes_res.add_method(
             "OPTIONS",
@@ -300,7 +330,7 @@ class CoreStack(Stack):
                         response_parameters={
                             "method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization'",
                             "method.response.header.Access-Control-Allow-Origin": "'*'",
-                            "method.response.header.Access-Control-Allow-Methods": "'OPTIONS,GET'",
+                            "method.response.header.Access-Control-Allow-Methods": "'OPTIONS,GET,DELETE'",
                         },
                     )
                 ],
