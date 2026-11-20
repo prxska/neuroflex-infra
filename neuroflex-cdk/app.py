@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Punto de entrada CDK de la arquitectura NeuroFlex multi-organización (modo Learner Lab)."""
+import os
+
 import aws_cdk as cdk
 
 from neuroflex.analytics_export_stack import AnalyticsExportStack
@@ -13,12 +15,23 @@ from neuroflex.tenant_stack import TenantStack
 app = cdk.App()
 settings = Settings.from_context(app.node)
 
-# CAMBIO CRÍTICO: Forzamos la nueva cuenta de AWS (058264412508) y la región.
-# Esto evita que CDK siga leyendo la cuenta vieja desde settings.py o cdk.json
-system_env = cdk.Environment(account="058264412508", region="us-east-1")
-analytics_env = cdk.Environment(account="058264412508", region="us-east-1")
+# Learner Lab: la cuenta cambia entre sesiones. CDK expone la cuenta/región de
+# las credenciales activas en CDK_DEFAULT_ACCOUNT / CDK_DEFAULT_REGION, así que
+# las usamos como destino y dejamos cdk.json solo como respaldo para synth sin
+# credenciales.
+target_account = os.environ.get("CDK_DEFAULT_ACCOUNT") or settings.system_account
+target_region = os.environ.get("CDK_DEFAULT_REGION") or settings.region
 
-# Sintetizador para desplegar con credenciales directas de CLI sin requerir roles globales de CDK Bootstrap
+# Toda la infraestructura vive en una sola cuenta: alinear las políticas de
+# analítica con la cuenta destino real.
+settings.system_account = target_account
+settings.analytics_account = target_account
+
+system_env = cdk.Environment(account=target_account, region=target_region)
+analytics_env = cdk.Environment(account=target_account, region=target_region)
+
+# Despliega con las credenciales directas del CLI (sin asumir roles de bootstrap),
+# pero sí requiere los recursos de staging creados por `cdk bootstrap`.
 synthesizer = cdk.CliCredentialsStackSynthesizer()
 
 cdk.Tags.of(app).add("proyecto", "neuroflex")
